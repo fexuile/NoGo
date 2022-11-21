@@ -24,11 +24,11 @@ void read(){
 	if (x!=-1) board[x][y]=1;
 }
 namespace MCTS{
-    int _N,num,node;
-    int b[2000001][N][N],put[2000010];
-    int val[2000010],_n[2000010],fa[2000010];
-    double ucb[2000010];
-    vector<int>son[2000010];
+    int _N,num;
+    int b[5000001][N][N],put[5000010];
+    int val[5000010],_n[5000010];
+    double ucb[5000010];
+    vector<int>son[5000010];
     bool in(int x,int y){return x>=0&&x<9&&y>=0&&y<9;}
     int air(int id,int x,int y){
         vis_air[x][y]=1;
@@ -54,72 +54,74 @@ namespace MCTS{
         }
         b[id][x][y]=0;return true;
     }
+    bool cmp(int x,int y){return ucb[x]>ucb[y];}
     int h(int id){
         int s=0;
         for(int i=0;i<9;i++)
             for(int j=0;j<9;j++)
-                if(ok(id,i,j,1))s++;
+                if(ok(id,i,j,-1))s++;
         for(int i=0;i<9;i++)
             for(int j=0;j<9;j++)
-                if(ok(id,i,j,-1))s--;
+                if(ok(id,i,j,1))s--;
         return s;
     }
-    void update(){
-        int flag=0,del=h(node);
-        while(node){
-            val[node]+=flag?del:-del;_n[node]++;
-            node=fa[node];flag^=1;
-        }
+    void rollout(int id){_n[id]=1;val[id]=h(id);}
+    void update(int id){
+        _n[id]++;val[id]=0;
+        for(int s:son[id])val[id]+=val[s];
     }
     bool end(int id){
         for(int i=0;i<9;i++)
             for(int j=0;j<9;j++)
-                if(ok(id,i,j,1))return false;
+                if(ok(id,i,j,-1))return false;
         return true;
     }
     void expand(int id){
         for(int i=0;i<9;i++)
             for(int j=0;j<9;j++)
-                if(ok(id,i,j,1)){
+                if(ok(id,i,j,-1)){
                     num++;
                     _n[num]=val[num]=0;
-                    put[num]=i*9+j;
+                    son[num].clear();put[num]=i*9+j;
                     for(int k=0;k<9;k++)
                         for(int l=0;l<9;l++)b[num][k][l]=-b[id][k][l];
-                    b[num][i][j]=-1;fa[num]=id;
+                    b[num][i][j]=-1;
                     son[id].push_back(num);
                 }
     }
     void mcts(int id){
-        if(end(id)){node=id;return;}
-        if(!son[id].size())expand(id);
-        for(int s:son[id])if(!_n[s]){node=s;return;}
-        double mx=0;int Max=0;
-        for(int s:son[id])ucb[s]=val[s]*1./_n[s]+2*sqrt((double)log((double)_N)*1./_n[s]);
-        for(int s:son[id])
-            if(ucb[s]>mx)mx=ucb[s],Max=s;
-        mcts(Max);
+        if(end(id))return;
+        if(!son[id].size()){
+            if(!_n[id]){
+                rollout(id);
+            }
+            else{
+                expand(id);
+                mcts(son[id][0]);
+                update(id);
+            }
+            return;
+        }
+        else{
+            for(int s:son[id])ucb[s]=_n[s]?val[s]*1./_n[s]+2*sqrt(log2(_N)/_n[s]):1145141919;
+            sort(son[id].begin(),son[id].end(),cmp);
+            mcts(son[id][0]);
+            update(id);
+        }
     }
     vector<int>work(){
         int Time=clock();
         vector<int>ans;ans.clear();
-
-        num=1;_N=0;
         for(int i=0;i<9;i++)
-            for(int j=0;j<9;j++)b[1][i][j]=-board[i][j];
+            for(int j=0;j<9;j++)b[0][i][j]=board[i][j];
+        num=0;_N=0;
         
-        expand(1);
-        int timeout = (int)(0.85 * (double)CLOCKS_PER_SEC);
-        while(clock()-Time<=timeout){
-            _N++;
-            node=1;mcts(1);
-            update();
-        }
+        expand(0);
+        while(++_N<=100 && clock()-Time<=800)mcts(0);
 
-        int mx=-1e9-10;
-        for(int s:son[1])if(val[s]>mx)mx=val[s];
-        for(int s:son[1])if(val[s]==mx)ans.push_back(put[s]);
-        printf("%d\n",ans.size());
+        int mx=0;
+        for(int s:son[0])if(val[s]>mx)mx=val[s];
+        for(int s:son[0])if(val[s]==mx)ans.push_back(put[s]);
         return ans;
     }
 }
